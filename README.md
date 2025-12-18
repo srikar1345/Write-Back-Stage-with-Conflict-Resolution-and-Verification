@@ -288,6 +288,22 @@ WEN = Valid AND Ready AND NOT Stall AND WritesReg
 
 (warning): input line #8 ignored
 Minterm : I0 = 1, I1 = 1, I2 = 0, I3 = 1
+```smv
+The following terminal session shows the exact Espresso-based derivation of the WEN condition:
+
+srikar@srikar-Virtual-Machine:~/Downloads$ ./espresso.linux -o
+eqntott test.in
+
+(warning): input line #4 ignored
+This defines the single condition (minterm) where WEN must be
+HIGH (1):
+
+(warning): input line #6 ignored
+WEN = Valid AND Ready AND NOT Stall AND WritesReg
+
+(warning): input line #8 ignored
+Minterm : I0 = 1, I1 = 1, I2 = 0, I3 = 1
+```
 🧩 Derived Boolean Function
 
 From the minimized truth table, Espresso produces the following canonical control expression:
