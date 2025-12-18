@@ -1,0 +1,92 @@
+`timescale 1ns / 1ps
+//////////////////////////////////////////////////////////////////////////////////
+// Company: 
+// Engineer: 
+// 
+// Create Date: 11/13/2025 10:42:04 PM
+// Design Name: 
+// Module Name: Top
+// Project Name: 
+// Target Devices: 
+// Tool Versions: 
+// Description: 
+// 
+// Dependencies: 
+// 
+// Revision:
+// Revision 0.01 - File Created
+// Additional Comments:
+// 
+//////////////////////////////////////////////////////////////////////////////////
+// -----------------------------------------------------------------
+// MODULE: WriteBackSubsystem (Commit Subsystem)
+// DESCRIPTION: Integrates ROB and Register File. Enforces in-order commit.
+// -----------------------------------------------------------------
+module WriteBackSubsystem (
+    input wire clk,
+    input wire rst_n,
+
+    input wire [4:0] ra1_i,
+    input wire [4:0] ra2_i,
+    output wire [31:0] rd1_o,
+    output wire [31:0] rd2_o,
+
+    input wire issue_i,
+    input wire [4:0] wa_arch_dispatch_i,
+    output wire [4:0] rob_id_o,
+    output wire issue_ready_o,
+
+    input wire complete_ooc_i,
+    input wire [4:0] rob_id_complete_i,
+    input wire [31:0] result_complete_i,
+
+    input wire stall_pipeline_i,
+    input wire flush_i
+);
+
+    wire commit_ready_w;
+    wire [4:0] wa_commit_w;
+    wire [31:0] wd_commit_w;
+
+    // DIRECT COMMIT (no register delay)
+    wire commit_we_w;
+    assign commit_we_w = commit_ready_w & ~stall_pipeline_i & ~flush_i;
+
+    // ROB (commit_done_i = commit_we_w)
+    ReorderBuffer u_rob(
+        .clk(clk),
+        .rst_n(rst_n),
+        .flush_i(flush_i),
+
+        .issue_i(issue_i),
+        .wa_arch_dispatch_i(wa_arch_dispatch_i),
+        .rob_id_o(rob_id_o),
+        .issue_ready_o(issue_ready_o),
+
+        .complete_ooc_i(complete_ooc_i),
+        .rob_id_complete_i(rob_id_complete_i),
+        .result_complete_i(result_complete_i),
+
+        .commit_ready_o(commit_ready_w),
+        .wa_commit_o(wa_commit_w),
+        .wd_commit_o(wd_commit_w),
+
+        .commit_done_i(commit_we_w)   // *** DIRECT COMMIT ***
+    );
+
+    // REGISTER FILE
+    RegisterFile u_reg_file (
+        .clk(clk),
+        .rst_n(rst_n),
+
+        .ra1_i(ra1_i),
+        .rd1_o(rd1_o),
+        .ra2_i(ra2_i),
+        .rd2_o(rd2_o),
+
+        .we_i(commit_we_w),      // *** DIRECT WEN (NO 1-cycle delay) ***
+        .wa_i(wa_commit_w),
+        .wd_i(wd_commit_w)
+    );
+
+endmodule

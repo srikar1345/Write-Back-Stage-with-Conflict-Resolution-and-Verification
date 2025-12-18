@@ -1,0 +1,147 @@
+`timescale 1ns / 1ps
+//////////////////////////////////////////////////////////////////////////////////
+// Company: 
+// Engineer: 
+// 
+// Create Date: 11/13/2025 11:31:15 PM
+// Design Name: 
+// Module Name: CONTROL_MUX
+// Project Name: 
+// Target Devices: 
+// Tool Versions: 
+// Description: 
+// 
+// Dependencies: 
+// 
+// Revision:
+// Revision 0.01 - File Created
+// Additional Comments:
+// 
+//////////////////////////////////////////////////////////////////////////////////
+
+
+// -----------------------------------------------------------------
+// MODULE: ReorderBuffer
+// DESCRIPTION: Core structure for in-order commit and result storage.
+// -----------------------------------------------------------------
+module ReorderBuffer (
+    input wire clk,
+    input wire rst_n,
+
+    // Flush due to mispredict, exception, etc.
+    input wire flush_i,
+
+    // Interface to Decode/Issue Stage
+    input wire issue_i,
+    output wire issue_ready_o,
+    input wire [4:0] wa_arch_dispatch_i,
+    output wire [4:0] rob_id_o,
+
+    // Completion interface (OOO)
+    input wire complete_ooc_i,
+    input wire [4:0] rob_id_complete_i,
+    input wire [31:0] result_complete_i,
+
+    // Commit interface
+    output wire commit_ready_o,
+    output wire [4:0] wa_commit_o,
+    output wire [31:0] wd_commit_o,
+    input wire commit_done_i
+);
+
+    parameter ROB_SIZE = 4;
+
+    // Internal pointers
+    reg [4:0] head_ptr;
+    reg [4:0] tail_ptr;
+
+    // ROB entry arrays
+    reg valid [0:ROB_SIZE-1];
+    reg ready [0:ROB_SIZE-1];
+    reg [4:0] dest_reg [0:ROB_SIZE-1];
+    reg [31:0] result_data [0:ROB_SIZE-1];
+
+    integer i;
+
+    // Compute next tail (Combinational)
+    wire [4:0] next_tail = (tail_ptr == ROB_SIZE-1) ? 5'd0 : tail_ptr + 1;
+
+    // Full flag (Combinational)
+    // The ROB is full if the next slot (next_tail) is currently valid AND
+    // the head is not pointing to it. (Simplified: check valid[next_tail])
+    wire rob_full = valid[next_tail]; 
+
+    // Expose ready-to-issue signal
+    assign issue_ready_o = !rob_full;
+
+    // ROB ID for the newly allocated entry
+    assign rob_id_o = tail_ptr;
+
+    // Commit interface outputs
+    assign commit_ready_o = valid[head_ptr] && ready[head_ptr];
+    assign wa_commit_o    = dest_reg[head_ptr];
+    assign wd_commit_o    = result_data[head_ptr];
+
+    // ---------------------------------------------------------------------
+    // Main ROB control : Reset / Flush / Issue / Commit (Sequential)
+    // ---------------------------------------------------------------------
+    always @(posedge clk) begin
+        if (!rst_n) begin
+            // 1. HARD RESET: Wipe everything and clear all states
+            head_ptr <= 5'd0;
+            tail_ptr <= 5'd0;
+            for (i = 0; i < ROB_SIZE; i = i+1) begin
+                valid[i] <= 1'b0;
+                ready[i] <= 1'b0;
+                dest_reg[i] <= 5'd0;
+                result_data[i] <= 32'd0;
+            end
+        end else if (flush_i) begin
+            // 2. FLUSH (Mispredict/Exception): Clear speculative instructions
+            // Head and Tail return to the commit point (usually 0 after reset or 
+            // the point of the mispredicted branch - simplified here to head=tail=0)
+            head_ptr <= 5'd0;
+            tail_ptr <= 5'd0;
+            for (i = 0; i < ROB_SIZE; i = i+1) begin
+                valid[i] <= 1'b0;
+                ready[i] <= 1'b0;
+            end
+        end else begin
+            // 3. ISSUE new entry
+            if (issue_i && !rob_full) begin
+                valid[tail_ptr] <= 1'b1;
+                ready[tail_ptr] <= 1'b0;
+                dest_reg[tail_ptr] <= wa_arch_dispatch_i;
+                result_data[tail_ptr] <= 32'd0; // Initialize data field
+
+                tail_ptr <= next_tail;
+            end
+
+            // 4. COMMIT entry at head
+            if (commit_done_i && valid[head_ptr]) begin
+                // Clear state of the retiring entry
+                valid[head_ptr] <= 1'b0;
+                ready[head_ptr] <= 1'b0; 
+                dest_reg[head_ptr] <= 5'd0; // Clear destination
+                result_data[head_ptr] <= 32'd0; // Clear data
+
+                // Advance head pointer
+                head_ptr <= (head_ptr == ROB_SIZE-1) ? 5'd0 : head_ptr + 1;
+            end
+        end
+    end
+
+    // ---------------------------------------------------------------------
+    // Completion (OOO) - Writes results into the ROB array
+    // ---------------------------------------------------------------------
+    always @(posedge clk) begin
+        if (rst_n && !flush_i && complete_ooc_i) begin
+            // Boundary check: ensure the completion ID is valid and within bounds
+            if (rob_id_complete_i < ROB_SIZE && valid[rob_id_complete_i]) begin
+                result_data[rob_id_complete_i] <= result_complete_i;
+                ready[rob_id_complete_i] <= 1'b1;
+            end
+        end
+    end
+
+endmodule

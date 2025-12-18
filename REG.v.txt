@@ -1,0 +1,82 @@
+`timescale 1ns / 1ps
+//////////////////////////////////////////////////////////////////////////////////
+// Company: 
+// Engineer: 
+// 
+// Create Date: 11/13/2025 10:47:30 PM
+// Design Name: 
+// Module Name: REG
+// Project Name: 
+// Target Devices: 
+// Tool Versions: 
+// Description: 
+// 
+// Dependencies: 
+// 
+// Revision:
+// Revision 0.01 - File Created
+// Additional Comments:
+// 
+//////////////////////////////////////////////////////////////////////////////////
+
+`timescale 1ns / 1ps
+
+module RegisterFile (
+    input  wire        clk,
+    input  wire        rst_n,  // active-low reset
+
+    // Read Ports
+    input  wire [4:0]  ra1_i, 
+    output reg  [31:0] rd1_o, 
+    input  wire [4:0]  ra2_i, 
+    output reg  [31:0] rd2_o, 
+
+
+    input  wire        we_i, 
+    input  wire [4:0]  wa_i, 
+    input  wire [31:0] wd_i 
+);
+
+    reg [31:0] registers [0:31];
+    integer i;
+
+
+    // Write + Reset Logic (synchronous on posedge clk)
+    // Active-low reset: when rst_n == 0, clear all registers
+
+    always @(negedge  clk) begin
+        if (!rst_n) begin
+            // synchronous reset
+            for (i = 0; i < 32; i = i + 1) begin
+                registers[i] <= 32'b0;
+            end
+        end else begin
+           
+            if (we_i && (wa_i != 5'b0)) begin
+                registers[wa_i] <= wd_i;
+            end
+     
+        end
+    end
+
+    // ----------------------------------------------------------
+    // Read Logic (combinational / asynchronous reads)
+    // Reads from x0 return zero by spec.
+    // ----------------------------------------------------------
+    always @(*) begin
+        if (ra1_i == 5'b0) begin
+            rd1_o = 32'b0;
+        end else begin
+            rd1_o = registers[ra1_i];
+        end
+    end
+
+    always @(*) begin
+        if (ra2_i == 5'b0) begin
+            rd2_o = 32'b0;
+        end else begin
+            rd2_o = registers[ra2_i];
+        end
+    end
+
+endmodule
