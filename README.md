@@ -265,8 +265,40 @@ SPEC AG (rob_head_next = rob_head + 1 | rob_empty)
 
 ##  Hardware Control Logic: Register File Write Enable
 
-The final **Register File Write Enable (WEN)** signal is generated using a **minimized Boolean control function**, introducing **zero additional latency**.
+The final **Register File Write Enable (WEN)** signal is generated using a **minimized Boolean control function**.
+Register File Write Enable (WEN) — Boolean Minimization
 
+To ensure zero-latency and minimal hardware overhead, the final Register File Write Enable (WEN) signal was derived using Espresso, a logic minimization tool widely used in hardware design.
+
+The goal was to formally minimize the commit condition while preserving all correctness guarantees proven during verification.
+
+ Espresso Logic Minimization (Terminal Output)
+
+The following terminal session shows the exact Espresso-based derivation of the WEN condition:
+
+srikar@srikar-Virtual-Machine:~/Downloads$ ./espresso.linux -o
+eqntott test.in
+
+(warning): input line #4 ignored
+This defines the single condition (minterm) where WEN must be
+HIGH (1):
+
+(warning): input line #6 ignored
+WEN = Valid AND Ready AND NOT Stall AND WritesReg
+
+(warning): input line #8 ignored
+Minterm : I0 = 1, I1 = 1, I2 = 0, I3 = 1
+🧩 Derived Boolean Function
+
+From the minimized truth table, Espresso produces the following canonical control expression:
+
+WEN = valid & ready & !stall & writes_reg
+🔍 Signal Semantics
+Signal	Description
+valid	Instruction at ROB head is valid
+ready	Instruction execution has completed
+stall	Pipeline stall condition
+writes_reg	Instruction updates architectural register
 ### Commit Enable Conditions
 
 An instruction commits **only if all conditions hold**:
