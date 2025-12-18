@@ -37,6 +37,7 @@ flowchart LR
 ---
 
 ##  Tomasulo + ROB Execution Workflow
+<img width="786" height="533" alt="screen" src="https://github.com/user-attachments/assets/bada5722-7c5c-4cda-a5d5-77273e08a936" />
 
 ### 1️ Instruction Fetch & Dispatch (In-Order)
 
